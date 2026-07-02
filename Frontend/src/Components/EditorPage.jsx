@@ -381,6 +381,12 @@ socket.on(
     <div className="right1">
 
           <Editor
+          options={{
+  minimap: { enabled: false },
+  suggestOnTriggerCharacters: false,
+  quickSuggestions: false,
+  wordBasedSuggestions: "off",
+}}
             height="100%"
             language={language}
             value={code}
