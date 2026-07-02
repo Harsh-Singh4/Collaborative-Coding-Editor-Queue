@@ -6,7 +6,7 @@ import connectDB from "./db.js";
 import Room from "./Models/Room.js";
 import dotenv from "dotenv";
 import fetch from "node-fetch";
-import redis from "./redis.js";
+
 
 dotenv.config();
 
@@ -73,6 +73,14 @@ function allowRunCode(userId) {
     return true;
 }
 
+const langMap = {
+    cpp: "CPP17",
+    python: "PYTHON3",
+    javascript: "JAVASCRIPT_NODE",
+    java: "JAVA8"
+};
+
+
 const rooms = {};
 const roomsCache = {};
 
@@ -116,6 +124,170 @@ function allowRoomAction(userId) {
     return true;
 }
 
+async function executeJob(data) {
+   // paste HackerEarth logic here
+   try{
+           const response = await fetch(
+               "https://api.hackerearth.com/v4/partner/code-evaluation/submissions/",
+               {
+                   method: "POST",
+                   headers: {
+                       "content-type": "application/json",
+                       "client-secret":
+                           process.env.HACKEREARTH_SECRET
+                   },
+                   body: JSON.stringify({
+                       source: data.code,
+                       lang: langMap[data.language],
+                       input: "",
+                       time_limit: 5,
+                       memory_limit: 262144
+                   })
+               }
+           );
+   
+           const submitData =
+               await response.json();
+   
+               console.log(submitData);
+   
+           const statusUrl =
+               submitData.status_update_url;
+   
+           let result;
+
+           let compileStatus="";
+   
+           while (true) {
+   
+               const statusResponse =
+                   await fetch(
+                       statusUrl,
+                       {
+                           headers: {
+                               "client-secret":
+                                   process.env.HACKEREARTH_SECRET
+                           }
+                       }
+                   );
+   result =
+       await statusResponse.json();
+   
+   console.log({
+       request:
+           result.request_status.code,
+   
+       compile:
+           result.result?.compile_status,
+   
+       run:
+           result.result?.run_status?.status
+   });
+   
+    compileStatus =
+       result.result?.compile_status;
+   
+   if (
+       compileStatus &&
+       compileStatus !== "OK" &&
+       compileStatus !== "Compiling..."
+   ) {
+       break;
+   }
+               
+               if (
+                   result.request_status.code ===
+                   "REQUEST_COMPLETED"
+               ) {
+                   break;
+               }
+   
+               await new Promise(
+                   resolve =>
+                       setTimeout(
+                           resolve,
+                           2000
+                       )
+               );
+           }
+   
+   
+           let output = "";
+
+           
+           if (
+               result.result?.compile_status &&
+               result.result.compile_status !== "OK"
+           ) {
+           
+                   output = compileStatus;
+           
+           }
+           else {
+           
+                  const runStatus =
+               result.result.run_status.status;
+           
+           
+           if (runStatus === "OLE") {
+           
+               output =
+                   "Output Limit Exceeded";
+           
+           }
+           else if (runStatus === "TLE") {
+           
+               output =
+                   "Time Limit Exceeded";
+           
+           }
+           else if (runStatus === "RE") {
+           
+               output =
+                   "Runtime Error";
+           
+           }
+           else {
+           
+               const outputUrl =
+                   result.result.run_status.output;
+           
+               if (!outputUrl) {
+           
+                   output =
+                       "No output available";
+           
+               }
+               else {
+           
+                   const outputResponse =
+                       await fetch(outputUrl);
+           
+                   output =
+                       await outputResponse.text();
+           
+               }
+           
+           }
+           }
+           
+           io.to(data.roomId).emit(
+    "execution-result",
+    output
+);
+   }
+    catch(err) {
+
+        console.log(err);
+
+        io.to(data.roomId).emit(
+            "execution-result",
+            err.message
+        );
+    }
+   
+}
+
 io.on("connection", (socket) => {
 
     // console.log("User Connected",socket.id);
@@ -139,37 +311,20 @@ io.on("connection", (socket) => {
             return;
         }
 
-        try {
+ try {
 
-    await redis.rPush(
-        "codeQueue",
-        JSON.stringify({
-            code,
-            language,
-            roomId
-        })
-    );
+    await executeJob({
+        code,
+        language,
+        roomId
+    });
 
-       console.log(
-    "JOB QUEUED",
-    roomId
-);
-
-        socket.emit(
-            "job-queued"
-        );
-
-    }
-    
-
-
-
-
+}
 catch(err){
 
     socket.emit(
         "execution-result",
-        "Queue unavailable"
+        err.message
     );
 
 }
@@ -443,33 +598,10 @@ int main() {
     });
 });
 
-
-app.post(
-    "/job-complete",
-    (req,res)=>{
-
-        const {
-            roomId,
-            output
-        } = req.body;
-
-        console.log(
-            "JOB COMPLETE",
-            roomId
-        );
-
-        io.to(roomId).emit(
-            "execution-result",
-            output
-        );
-
-        res.sendStatus(200);
-    }
-);
-
 await connectDB();
-
 
 server.listen(PORT, () => {
     console.log(`Server is running on Port ${PORT}`);
 })
+
+

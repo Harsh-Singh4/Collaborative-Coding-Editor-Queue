@@ -59,7 +59,7 @@ const runCode = () => {
                 "Request timed out. Please try again."
             );
 
-        }, 30000);
+        }, 90000);
 
 
 
