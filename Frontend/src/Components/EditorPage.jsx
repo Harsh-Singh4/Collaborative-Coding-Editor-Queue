@@ -381,11 +381,42 @@ socket.on(
     <div className="right1">
 
           <Editor
-          options={{
+  options={{
   minimap: { enabled: false },
-  suggestOnTriggerCharacters: false,
+
   quickSuggestions: false,
+  suggestOnTriggerCharacters: false,
   wordBasedSuggestions: "off",
+
+  parameterHints: {
+    enabled: false,
+  },
+
+  suggest: {
+    showMethods: false,
+    showFunctions: false,
+    showConstructors: false,
+    showFields: false,
+    showVariables: false,
+    showClasses: false,
+    showStructs: false,
+    showModules: false,
+    showProperties: false,
+    showEvents: false,
+    showOperators: false,
+    showUnits: false,
+    showValues: false,
+    showConstants: false,
+    showEnums: false,
+    showEnumMembers: false,
+    showKeywords: false,
+    showWords: false,
+    showSnippets: false,
+  },
+
+  inlineSuggest: {
+    enabled: false,
+  },
 }}
             height="100%"
             language={language}
